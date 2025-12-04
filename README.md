@@ -1,3 +1,29 @@
+# Shisa AI IFBench Fork
+
+This is Shisa AI's fork of IFBench with bug fixes and a custom response generation script.
+
+## Changes from Upstream
+
+### Bug Fixes
+
+**`evaluation_lib.py`** - Null response handling
+- Added guards in `test_instruction_following_strict()` and `test_instruction_following_loose()` to handle `None` or non-string responses
+- Fixes crashes when providers (e.g., Gemini via OpenAI-compatible shims) return null for safety refusals
+
+**`instructions.py`** - `LastWordFirstNextChecker.check_following()` fix
+- Filters empty sentences from the splitter to prevent crashes on unusual punctuation/spacing
+- Requires minimum 2 sentences for the constraint to be valid
+- Guards against empty word lists after stripping punctuation (prevents `IndexError`)
+
+### New Files
+
+**`shisa_generate_responses.py`** - Response generation script for OpenAI-compatible APIs
+- Parallel execution with configurable workers (default 50)
+- Works with vLLM, local servers, or any OpenAI-compatible endpoint
+- JSONL input/output format compatible with IFBench evaluation
+
+---
+
 # Generalizing Verifiable Instruction Following
 
 This repo contains IFBench, which is a new, challenging benchmark for precise instruction following.

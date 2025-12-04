@@ -1164,10 +1164,29 @@ class LastWordFirstNextChecker(Instruction):
 
 	def check_following(self, value):
 		"""Checks if the last word of each sentence in the response is the first word of the next sentence."""
-		sentences = instructions_util.split_into_sentences(value)
+		# Filter out any empty sentences that can arise from the splitter so we
+		# don't crash on responses with unusual punctuation or spacing.
+		sentences = [
+			s for s in instructions_util.split_into_sentences(value) if s.strip()
+		]
+		# Need at least two sentences for the constraint to make sense.
+		if len(sentences) < 2:
+			return False
+
 		for i in range(len(sentences) - 1):
-			last_word = sentences[i].rstrip(''.join(string.punctuation) + ' ').split()[-1]
-			first_word = sentences[i + 1].lstrip(''.join(string.punctuation) + ' ').split()[0]
+			prev_sentence = sentences[i].rstrip(''.join(string.punctuation) + ' ')
+			next_sentence = sentences[i + 1].lstrip(''.join(string.punctuation) + ' ')
+
+			prev_words = prev_sentence.split()
+			next_words = next_sentence.split()
+
+			# If either sentence has no actual words after stripping, treat as a violation
+			# rather than raising an IndexError.
+			if not prev_words or not next_words:
+				return False
+
+			last_word = prev_words[-1]
+			first_word = next_words[0]
 			if last_word.lower() != first_word.lower():
 				return False
 		return True

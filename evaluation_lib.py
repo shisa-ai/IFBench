@@ -78,6 +78,11 @@ def test_instruction_following_strict(
 ):
   """Tests response to see if instrutions are followed."""
   response = prompt_to_response[inp.prompt]
+  # Some providers (e.g., Gemini via OpenAI-compatible shims) may return
+  # a null/None response for certain prompts (safety refusals). Guard
+  # against this so we don't crash on `.strip()`.
+  if not isinstance(response, str):
+    response = "" if response is None else str(response)
   instruction_list = inp.instruction_id_list
   is_following_list = []
 
@@ -110,6 +115,8 @@ def test_instruction_following_loose(
 ):
   """Tests response for an upper bound for following instructions."""
   response = prompt_to_response[inp.prompt]
+  if not isinstance(response, str):
+    response = "" if response is None else str(response)
   r = response.split("\n")
   response_remove_first = "\n".join(r[1:]).strip()
   response_remove_last = "\n".join(r[:-1]).strip()
