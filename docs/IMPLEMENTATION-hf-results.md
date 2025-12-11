@@ -5,21 +5,47 @@ This document describes how we manage IFBench evaluation results using HuggingFa
 ## Overview
 
 We store evaluation results in a dedicated HuggingFace dataset repository:
-- **Repository**: [shisa-ai/results-IFBench](https://huggingface.co/datasets/shisa-ai/results-IFBench)
+- **Repository**: [shisa-ai/eval-IFBench-results](https://huggingface.co/datasets/shisa-ai/eval-IFBench-results)
 - **License**: ODC-BY-1.0 (consistent with original IFBench)
+
+### Naming Convention
+
+We use the `eval-{EVAL}-{type}` schema for all evaluation datasets:
+- `eval-IFBench-results` - Model evaluation outputs
+- `eval-IFBench-prompts` - Test prompts/questions (if separated)
+- `eval-shisa-jp-tl-bench-results` - Another benchmark's results
+- etc.
+
+This ensures all assets for a given benchmark cluster together when sorted alphabetically.
 
 ### Why HuggingFace?
 
-- **Size**: Results are ~2GB+ and growing; too large for regular git
+- **Size**: Results are ~250MB+ and growing; keeps code repo clean
 - **Accessibility**: Easy programmatic access via `datasets` library
 - **Community**: Others can contribute results via Pull Requests
 - **Viewer**: Built-in dataset viewer for browsing results in browser
 - **Independence**: Not limited by fork LFS quotas
 
-## Directory Structure
+## Repository Structure
+
+### Code Repository (GitHub)
 
 ```
-results-IFBench/
+shisa-ai/IFBench/
+├── evaluation_lib.py          # Evaluation logic (with our bug fixes)
+├── instructions.py            # Instruction checkers (with our bug fixes)
+├── shisa_generate_responses.py # Response generation script
+├── run_eval.py                # Evaluation runner
+├── data/                      # Test prompts
+├── docs/                      # Documentation
+│   └── IMPLEMENTATION-hf-results.md
+└── results/                   # Git submodule → HuggingFace
+```
+
+### Results Repository (HuggingFace, mounted as submodule)
+
+```
+eval-IFBench-results/
 ├── README.md                           # Dataset card
 ├── {org}--{model-name}/               # One folder per model
 │   ├── responses_{model-name}.jsonl   # Raw model responses
@@ -28,54 +54,88 @@ results-IFBench/
 └── ...
 ```
 
-### Naming Convention
+### Model Naming Convention
 
 Model folders use HuggingFace model ID format with `/` replaced by `--`:
 - `meta-llama--Llama-3.3-70B-Instruct`
 - `shisa-ai--shisa-v2-llama3.3-70b`
 - `gpt-4o-2024-08-06` (for API models without org)
 
-## Running Evaluations
+## Setup
 
-### 1. Generate Responses
-
-Using our custom script for OpenAI-compatible APIs:
+### Clone with Submodule
 
 ```bash
+# Clone code repo with results submodule
+git clone --recurse-submodules https://github.com/shisa-ai/IFBench.git
+
+# Or if already cloned:
+git submodule update --init --recursive
+```
+
+### Submodule Configuration
+
+The results submodule is configured in `.gitmodules`:
+```ini
+[submodule "results"]
+    path = results
+    url = https://huggingface.co/datasets/shisa-ai/eval-IFBench-results
+```
+
+## Running Evaluations
+
+### Using multieval (Recommended)
+
+The multieval runner outputs directly to `results/`:
+
+```bash
+cd ~/multieval
+./run-evals-py --model shisa-ai/my-model --evals ifbench
+```
+
+Results are written to `evals/IFBench/results/{model-slug}/`.
+
+### Manual Evaluation
+
+#### 1. Generate Responses
+
+```bash
+cd evals/IFBench
 python shisa_generate_responses.py \
     --input_data data/IFBench_test.jsonl \
-    --output_path {model-name}/responses_{model-name}.jsonl \
+    --output_path results/{model-name}/responses_{model-name}.jsonl \
     --model_name {model-name} \
     --base_url http://localhost:8000/v1 \
     --workers 50
 ```
 
-### 2. Run Evaluation
+#### 2. Run Evaluation
 
 ```bash
 python -m run_eval \
     --input_data=data/IFBench_test.jsonl \
-    --input_response_data={model-name}/responses_{model-name}.jsonl \
-    --output_dir={model-name}
+    --input_response_data=results/{model-name}/responses_{model-name}.jsonl \
+    --output_dir=results/{model-name}
 ```
 
 This produces:
-- `eval_results_strict.jsonl`
-- `eval_results_loose.jsonl`
+- `results/{model-name}/eval_results_strict.jsonl`
+- `results/{model-name}/eval_results_loose.jsonl`
 
-### 3. Upload to HuggingFace
+### Publishing Results
+
+After evaluation, commit and push results to HuggingFace:
 
 ```bash
-# Clone the results repo
-git clone https://huggingface.co/datasets/shisa-ai/results-IFBench
-cd results-IFBench
-
-# Copy results
-cp -r /path/to/{model-name} .
-
-# Commit and push
+cd results/  # The submodule directory
 git add {model-name}/
 git commit -m "Add results for {model-name}"
+git push
+
+# Then update the submodule reference in the parent repo
+cd ..
+git add results
+git commit -m "Update results submodule"
 git push
 ```
 
@@ -86,62 +146,48 @@ from huggingface_hub import HfApi
 
 api = HfApi()
 api.upload_folder(
-    folder_path="./{model-name}",
+    folder_path="./results/{model-name}",
     path_in_repo="{model-name}",
-    repo_id="shisa-ai/results-IFBench",
+    repo_id="shisa-ai/eval-IFBench-results",
     repo_type="dataset",
 )
 ```
 
-## Evaluation Status
+## Programmatic Access
 
-### Completed Evaluations
+```python
+from datasets import load_dataset
 
-| Model | Strict | Loose | Date | Notes |
-|-------|--------|-------|------|-------|
-| meta-llama--Llama-3.3-70B-Instruct | | | 2024-11 | |
-| meta-llama--Llama-3.1-8B-Instruct | | | 2024-11 | |
-| shisa-ai--shisa-v2-llama3.3-70b | | | 2024-11 | |
-| gpt-4o-2024-08-06 | | | 2024-11 | |
-| *... ~90+ models evaluated* | | | | |
+# Load all results
+ds = load_dataset("shisa-ai/eval-IFBench-results")
 
-### Pending Upload
+# Or load specific model results
+import json
+from huggingface_hub import hf_hub_download
 
-All results in the local `IFBench/` directory need to be uploaded to HuggingFace.
-
-**To upload all existing results:**
-
-```bash
-cd /tmp/results-IFBench
-
-# Copy all model result directories (exclude non-result folders)
-for dir in /data/multieval/evals/IFBench/*/; do
-    name=$(basename "$dir")
-    # Skip non-result directories
-    [[ "$name" =~ ^(data|eval|eval2|docs|__pycache__)$ ]] && continue
-    # Skip if no eval results
-    [[ -f "$dir/eval_results_loose.jsonl" ]] || continue
-    cp -r "$dir" .
-done
-
-git add .
-git commit -m "Add evaluation results for ~90 models"
-git push
+path = hf_hub_download(
+    repo_id="shisa-ai/eval-IFBench-results",
+    filename="meta-llama--Llama-3.3-70B-Instruct/eval_results_loose.jsonl",
+    repo_type="dataset"
+)
+with open(path) as f:
+    results = [json.loads(line) for line in f]
 ```
 
 ## Community Contributions
 
-### Accepting Results
+### Submitting Results
 
-1. Contributors fork the HF repo
-2. They add their `{model-name}/` folder with required files
-3. They open a Pull Request via the Community tab
-4. We review:
-   - Folder naming follows convention
-   - All 3 required files present
-   - JSONL format is valid
-   - Results appear reasonable (spot check)
-5. Merge if approved
+1. **Fork** the HF dataset repo
+2. **Run IFBench evaluation** using the [official code](https://github.com/shisa-ai/IFBench)
+3. **Add your results** in a folder named `{org}--{model-name}/`
+4. **Open a Pull Request** via the Community tab
+
+### Required Files
+
+- `responses_{model-name}.jsonl` - Your model's responses
+- `eval_results_strict.jsonl` - Strict evaluation output
+- `eval_results_loose.jsonl` - Loose evaluation output
 
 ### Review Checklist
 
@@ -155,12 +201,14 @@ git push
 ## Related Repositories
 
 - **Code**: [shisa-ai/IFBench](https://github.com/shisa-ai/IFBench) - Evaluation code (fork of allenai/IFBench)
-- **Results**: [shisa-ai/results-IFBench](https://huggingface.co/datasets/shisa-ai/results-IFBench) - This results dataset
+- **Results**: [shisa-ai/eval-IFBench-results](https://huggingface.co/datasets/shisa-ai/eval-IFBench-results) - Results dataset
 - **Original**: [allenai/IFBench](https://github.com/allenai/IFBench) - Upstream benchmark
 
-## Future Work
+## Replicating for Other Benchmarks
 
-- [ ] Add leaderboard generation script from results
-- [ ] Automate result upload in evaluation pipeline
-- [ ] Add CI validation for PR submissions
-- [ ] Create similar repos for other benchmarks (shisa-jp-tl-bench, etc.)
+To set up the same pattern for another benchmark:
+
+1. **Create HF dataset repo**: `shisa-ai/eval-{BENCHMARK}-results`
+2. **Add as submodule**: `git submodule add https://huggingface.co/datasets/shisa-ai/eval-{BENCHMARK}-results results`
+3. **Update eval runner** to output to `results/{model-slug}/`
+4. **Create documentation** following this template
