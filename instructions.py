@@ -20,7 +20,6 @@ import re
 import string
 from typing import Dict, Optional, Sequence, Union
 import nltk
-from spacy.cli import download
 import emoji
 import syllapy
 import unicodedata
@@ -29,8 +28,6 @@ import csv
 import io
 
 import instructions_util
-
-download('en_core_web_sm')
 
 logger = logging.getLogger(__name__)
 
@@ -420,6 +417,8 @@ class NGramOverlapChecker(Instruction):
 		n = 3
 		ngrams = set(nltk.ngrams(value, n))
 		ref_ngrams = set(nltk.ngrams(self._reference_text, n))
+		if not ngrams:
+			return False
 		overlap = len(ngrams.intersection(ref_ngrams)) / len(ngrams)
 		return self._percentage - 2 <= overlap * 100 <= self._percentage + 2
 

@@ -128,6 +128,13 @@ class InstructionsTest(parameterized.TestCase):
         with self.subTest('test with TEST_NGRAM_OVERLAP'):
             self.assertTrue(instruction.check_following(self.TEST_NGRAM_OVERLAP))
 
+    def test_ngram_overlap_short_response(self):
+        instruction_id = 'ratio:overlap'
+        instruction = instructions.NGramOverlapChecker(instruction_id)
+        instruction.build_description(reference_text=self.NGRAM_OVERLAP_REFERENCE, percentage=100)
+        with self.subTest('test with short response'):
+            self.assertFalse(instruction.check_following("hi"))
+
     TEST_NUMBERS_COUNT_SIMPLE = "1 2 3"
     TEST_NUMBERS_COUNT = """This is 1 number. This is not 10 numbers. It is 3."""
     TEST_NUMBERS_COUNT_DECIMAL = """Decimals like 3.14 should only count as one number 2."""
