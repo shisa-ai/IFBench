@@ -84,28 +84,28 @@ def generate_responses(
 
 def main():
     parser = argparse.ArgumentParser(description="Generate responses for IFBench")
-    parser.add_argument("--input_data", required=True, help="Path to IFBench_test.jsonl")
-    parser.add_argument("--output_path", required=True, help="Path to save responses")
-    parser.add_argument("--model_name", required=True, help="Model name/identifier")
-    parser.add_argument("--base_url", default="http://localhost:8000/v1", help="API base URL")
-    parser.add_argument("--api_key", default=None, help="API key (or set via env)")
-    parser.add_argument("--api_key_env", default="OPENAI_COMPATIBLE_API_KEY", help="Env var for API key")
+    parser.add_argument("--input-file", required=True, help="Path to IFBench_test.jsonl")
+    parser.add_argument("--output-file", required=True, help="Path to save responses")
+    parser.add_argument("--model", required=True, help="Model name/identifier")
+    parser.add_argument("--api-base", default="http://localhost:8000/v1", help="API base URL")
+    parser.add_argument("--api-key", default=None, help="API key (or set via env)")
+    parser.add_argument("--api-key-env", default="OPENAI_COMPATIBLE_API_KEY", help="Env var for API key")
     parser.add_argument("--temperature", type=float, default=0.0, help="Sampling temperature")
-    parser.add_argument("--max_tokens", type=int, default=2048, help="Max tokens to generate")
+    parser.add_argument("--max-tokens", type=int, default=2048, help="Max tokens to generate")
     parser.add_argument("--workers", type=int, default=50, help="Number of parallel workers")
 
     args = parser.parse_args()
 
-    # Resolve API key
+    # Resolve API key (argparse converts dashes to underscores)
     api_key = args.api_key
     if not api_key:
         api_key = os.environ.get(args.api_key_env, "EMPTY")
 
     generate_responses(
-        input_data_path=args.input_data,
-        output_path=args.output_path,
-        model_name=args.model_name,
-        base_url=args.base_url,
+        input_data_path=args.input_file,
+        output_path=args.output_file,
+        model_name=args.model,
+        base_url=args.api_base,
         api_key=api_key,
         temperature=args.temperature,
         max_tokens=args.max_tokens,
